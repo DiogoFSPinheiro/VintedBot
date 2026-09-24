@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": 5001,
+      "title": "Sapatilhas Nike Air <novo> & bonito",
+      "price": {"amount": "25.0", "currency_code": "EUR"},
+      "brand_title": "Nike",
+      "size_title": "42",
+      "url": "https://www.vinted.pt/items/5001-sapatilhas",
+      "photo": {"url": "https://images1.vinted.net/t/5001.jpeg"}
+    },
+    {
+      "id": 5000,
+      "title": "Casaco",
+      "price": "12.5",
+      "currency": "EUR",
+      "brand_title": "",
+      "size_title": "M",
+      "url": "https://www.vinted.pt/items/5000-casaco",
+      "photo": null
+    }
+  ],
+  "pagination": {"current_page": 1}
+}
