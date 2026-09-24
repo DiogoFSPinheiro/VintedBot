@@ -1,0 +1,134 @@
+from tests.fakes import FakeClient, FakeNotifier, make_item
+from vintedbot.monitor import (
+    BASE_BACKOFF_S,
+    MAX_ALERTS_PER_CYCLE,
+    MAX_BACKOFF_S,
+    WARN_AFTER_FAILURES,
+    Monitor,
+)
+from vintedbot.storage import Storage
+from vintedbot.vinted.client import VintedBlockedError, VintedError
+from vintedbot.vinted.url_parser import parse_search_url
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+async def _no_sleep(_seconds):
+    return None
+
+
+def _setup(responses, notifier=None):
+    storage = Storage()
+    client = FakeClient(responses)
+    notifier = notifier or FakeNotifier()
+    clock = Clock()
+    monitor = Monitor(storage, client, notifier, clock=clock, sleep=_no_sleep)
+    return storage, client, notifier, clock, monitor
+
+
+def _add(storage, chat_id=1, text="nike"):
+    url = f"https://www.vinted.pt/catalog?search_text={text}"
+    return storage.add_search(chat_id, text, url, parse_search_url(url))
+
+
+async def test_first_check_primes_silently():
+    storage, _, notifier, _, monitor = _setup([[make_item(3), make_item(2)]])
+    search = _add(storage)
+    assert await monitor.check_search(search) == 0
+    assert notifier.items == []
+    assert storage.get_search(search.id).primed
+    assert storage.filter_unseen(search.id, [2, 3]) == []
+
+
+async def test_new_items_alerted_oldest_first_and_only_once():
+    page = [make_item(4), make_item(3), make_item(2)]
+    storage, _, notifier, _, monitor = _setup([[make_item(2)], page, page])
+    _add(storage)
+    await monitor.run_cycle()  # primes
+    await monitor.run_cycle()
+    assert [item.id for _, _, item in notifier.items] == [3, 4]
+    await monitor.run_cycle()
+    assert len(notifier.items) == 2
+
+
+async def test_burst_is_capped_and_summarised():
+    burst = [make_item(i) for i in range(100 + MAX_ALERTS_PER_CYCLE + 5, 100, -1)]
+    storage, _, notifier, _, monitor = _setup([[make_item(1)], burst])
+    search = _add(storage)
+    await monitor.run_cycle()
+    await monitor.run_cycle()
+    assert len(notifier.items) == MAX_ALERTS_PER_CYCLE
+    assert notifier.items[-1][2].id == burst[0].id  # o mais recente chega em último
+    assert len(notifier.texts) == 1
+    assert "mais 5" in notifier.texts[0][1]
+    assert storage.filter_unseen(search.id, [i.id for i in burst]) == []
+
+
+async def test_failed_send_is_retried_next_cycle():
+    page = [make_item(4), make_item(3), make_item(2)]
+    notifier = FakeNotifier(fail_item_ids={3})
+    storage, _, notifier, _, monitor = _setup([[make_item(2)], page, page], notifier)
+    search = _add(storage)
+    await monitor.run_cycle()
+    await monitor.run_cycle()  # item 3 falha -> nada marcado como visto
+    assert storage.filter_unseen(search.id, [4, 3]) == [4, 3]
+    notifier.fail_item_ids.clear()
+    await monitor.run_cycle()
+    assert [item.id for _, _, item in notifier.items] == [3, 4]
+
+
+async def test_items_still_listed_have_seen_at_refreshed():
+    storage, _, _, _, monitor = _setup([[make_item(1)], [make_item(1)]])
+    search = _add(storage)
+    await monitor.run_cycle()
+    storage.mark_seen(search.id, [1], now=0)  # simula visto há muito tempo
+    await monitor.run_cycle()
+    assert storage.purge_seen(30 * 86400) == 0
+
+
+async def test_paused_searches_are_skipped():
+    storage, client, _, _, monitor = _setup([])
+    search = _add(storage)
+    storage.set_active(1, search.id, False)
+    await monitor.run_cycle()
+    assert client.queries == []
+
+
+async def test_error_in_one_search_does_not_stop_others():
+    storage, _, _, _, monitor = _setup([VintedError("boom"), [make_item(1)]])
+    _add(storage, text="a")
+    second = _add(storage, text="b")
+    await monitor.run_cycle()
+    assert storage.get_search(second.id).primed
+
+
+async def test_blocked_backs_off_warns_once_and_recovers():
+    blocked = [VintedBlockedError(429) for _ in range(WARN_AFTER_FAILURES)]
+    storage, client, notifier, clock, monitor = _setup(blocked + [[make_item(1)]])
+    _add(storage)
+
+    await monitor.run_cycle()
+    assert len(client.queries) == 1
+    await monitor.run_cycle()  # ainda em backoff
+    assert len(client.queries) == 1
+
+    wait = BASE_BACKOFF_S
+    for _ in range(WARN_AFTER_FAILURES - 1):
+        clock.now += wait
+        await monitor.run_cycle()
+        wait = min(wait * 2, MAX_BACKOFF_S)
+
+    assert len(client.queries) == WARN_AFTER_FAILURES
+    assert len(notifier.texts) == 1
+    assert "bloquear" in notifier.texts[0][1]
+
+    clock.now += wait
+    await monitor.run_cycle()
+    assert len(notifier.texts) == 2
+    assert "voltou" in notifier.texts[1][1]
