@@ -85,3 +85,17 @@ class FakeMonitor:
         if self.error:
             raise self.error
         return 0
+
+
+class FakeBot:
+    def __init__(self, photo_error=None):
+        self.sent = []  # (kind, chat_id, text, reply_markup)
+        self.photo_error = photo_error
+
+    async def send_photo(self, chat_id, photo, caption, parse_mode, reply_markup):
+        if self.photo_error:
+            raise self.photo_error
+        self.sent.append(("photo", chat_id, caption, reply_markup))
+
+    async def send_message(self, chat_id, text, parse_mode=None, reply_markup=None):
+        self.sent.append(("message", chat_id, text, reply_markup))

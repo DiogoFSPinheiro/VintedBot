@@ -5,7 +5,7 @@ Repo vazio (só README). Objetivo: um bot pessoal que monitoriza pesquisas da Vi
 
 **Decisões do utilizador:** alertas de artigos novos · Telegram · correr no PC Windows (mais tarde num Pi/servidor) · pesquisas geridas colando o URL da Vinted · Python.
 
-**Viabilidade:** a Vinted não tem API pública, mas o site usa `GET https://www.vinted.<tld>/api/v2/catalog/items` (JSON), autenticado com o cookie de sessão anónimo (`access_token_web`) obtido ao pedir a homepage. Risco: os ToS proíbem scraping; há anti-bot (Cloudflare/Datadome → 403/429). Mitigação: poucos pedidos (intervalo ≥ 60–120 s por pesquisa, com jitter), impressão TLS de browser (`curl_cffi`), IP residencial e backoff.
+**Viabilidade:** a Vinted não tem API pública, mas o site usa `GET https://www.vinted.<tld>/web/gateway/svc-catalogue/items` (JSON; filtros em `attribute_ids[brand|size|status|catalog|…]`), autenticado com o cookie de sessão anónimo (`access_token_web`) obtido ao pedir a homepage. (Atualizado na implementação: o antigo `/api/v2/catalog/items` devolve 404.) Risco: os ToS proíbem scraping; há anti-bot (Cloudflare/Datadome → 403/429). Mitigação: poucos pedidos (intervalo ≥ 60–120 s por pesquisa, com jitter), impressão TLS de browser (`curl_cffi`), IP residencial e backoff.
 
 ## Arquitetura (Python 3.12, asyncio, um só processo)
 
