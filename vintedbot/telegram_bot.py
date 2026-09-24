@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from datetime import timedelta
 from html import escape
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
-from telegram.error import BadRequest
+from telegram.error import BadRequest, RetryAfter
 from telegram.ext import Application, CommandHandler, ContextTypes, filters
 
 from vintedbot.commands import HELP, Commands
@@ -33,6 +34,18 @@ def format_caption(search: Search, item: Item) -> str:
     return "\n".join(lines)
 
 
+async def _with_flood_retry(send, **kwargs) -> None:
+    try:
+        await send(**kwargs)
+    except RetryAfter as exc:
+        delay = exc.retry_after
+        if isinstance(delay, timedelta):
+            delay = delay.total_seconds()
+        log.warning("Telegram pediu para esperar %ss; a repetir", delay)
+        await asyncio.sleep(float(delay) + 1)
+        await send(**kwargs)
+
+
 class TelegramNotifier:
     def __init__(self, bot) -> None:
         self._bot = bot
@@ -44,7 +57,8 @@ class TelegramNotifier:
         )
         if item.photo_url:
             try:
-                await self._bot.send_photo(
+                await _with_flood_retry(
+                    self._bot.send_photo,
                     chat_id=chat_id,
                     photo=item.photo_url,
                     caption=caption,
@@ -54,10 +68,12 @@ class TelegramNotifier:
                 return
             except BadRequest:
                 log.warning("Telegram rejeitou a foto do artigo %s; a enviar só texto", item.id)
-        await self._bot.send_message(chat_id, caption, parse_mode=ParseMode.HTML, reply_markup=markup)
+        await _with_flood_retry(
+            self._bot.send_message, chat_id=chat_id, text=caption, parse_mode=ParseMode.HTML, reply_markup=markup
+        )
 
     async def send_text(self, chat_id: int, text: str) -> None:
-        await self._bot.send_message(chat_id, text)
+        await _with_flood_retry(self._bot.send_message, chat_id=chat_id, text=text)
 
 
 def build_application(settings: Settings, storage: Storage, client: VintedClient) -> Application:

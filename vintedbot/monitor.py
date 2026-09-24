@@ -72,17 +72,21 @@ class Monitor:
             log.info("Em backoff; ciclo ignorado")
             return
         searches = self._storage.list_searches(active_only=True)
+        succeeded = 0
         for index, search in enumerate(searches):
             if index:
                 await self._sleep(self._pause_between_s)
             try:
                 await self.check_search(search)
+                succeeded += 1
             except VintedBlockedError as exc:
                 await self._on_blocked(exc, searches)
                 return
             except Exception:
                 log.exception("Falha ao verificar a pesquisa #%s", search.id)
-        await self._on_healthy(searches)
+        # Só é recuperação se a Vinted respondeu de facto a pelo menos uma pesquisa.
+        if succeeded or not searches:
+            await self._on_healthy(searches)
 
     async def _on_blocked(self, exc: VintedBlockedError, searches: list[Search]) -> None:
         self._failures += 1

@@ -132,3 +132,21 @@ async def test_blocked_backs_off_warns_once_and_recovers():
     await monitor.run_cycle()
     assert len(notifier.texts) == 2
     assert "voltou" in notifier.texts[1][1]
+
+
+async def test_failed_cycle_after_block_is_not_a_recovery():
+    blocked = [VintedBlockedError(403) for _ in range(WARN_AFTER_FAILURES)]
+    storage, client, notifier, clock, monitor = _setup(blocked + [VintedError("timeout"), [make_item(1)]])
+    _add(storage)
+    wait = BASE_BACKOFF_S
+    for _ in range(WARN_AFTER_FAILURES):
+        await monitor.run_cycle()
+        clock.now += wait
+        wait = min(wait * 2, MAX_BACKOFF_S)
+    assert len(notifier.texts) == 1  # aviso de bloqueio
+    await monitor.run_cycle()  # erro de rede: nada correu bem
+    assert len(notifier.texts) == 1
+    clock.now += MAX_BACKOFF_S
+    await monitor.run_cycle()
+    assert "voltou" in notifier.texts[-1][1]
+    assert len(notifier.texts) == 2

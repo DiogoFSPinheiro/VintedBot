@@ -94,3 +94,13 @@ def test_data_persists_in_file(tmp_path):
     assert reopened.get_search(s.id).name == "nike"
     assert reopened.filter_unseen(s.id, [9]) == []
     reopened.close()
+
+
+def test_resume_resets_priming_so_backlog_is_not_alerted():
+    storage = Storage()
+    s = _add(storage)
+    storage.mark_primed(s.id)
+    storage.set_active(1, s.id, False)
+    assert storage.get_search(s.id).primed is True
+    storage.set_active(1, s.id, True)
+    assert storage.get_search(s.id).primed is False

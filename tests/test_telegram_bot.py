@@ -47,3 +47,30 @@ async def test_item_without_url_has_no_button():
     bot = FakeBot()
     await TelegramNotifier(bot).send_item(1, _search(), make_item(1, url=""))
     assert bot.sent[0][3] is None
+
+
+async def test_retry_after_waits_and_retries_once(monkeypatch):
+    from telegram.error import RetryAfter
+
+    import vintedbot.telegram_bot as tb
+
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(tb.asyncio, "sleep", fake_sleep)
+    bot = FakeBot()
+    original = bot.send_photo
+    calls = []
+
+    async def flaky_send_photo(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise RetryAfter(3)
+        await original(**kwargs)
+
+    bot.send_photo = flaky_send_photo
+    await TelegramNotifier(bot).send_item(1, _search(), make_item(1, photo_url="https://img/1.jpg"))
+    assert [s[0] for s in bot.sent] == ["photo"]
+    assert slept and slept[0] >= 3

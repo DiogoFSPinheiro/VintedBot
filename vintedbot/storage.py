@@ -97,8 +97,10 @@ class Storage:
     def set_active(self, chat_id: int, search_id: int, active: bool) -> bool:
         with self._db:
             cur = self._db.execute(
-                "UPDATE searches SET active = ? WHERE id = ? AND chat_id = ?",
-                (int(active), search_id, chat_id),
+                # Retomar volta a "primar" a pesquisa: o que apareceu durante a pausa não gera alertas.
+                "UPDATE searches SET active = ?, primed = CASE WHEN ? THEN 0 ELSE primed END "
+                "WHERE id = ? AND chat_id = ?",
+                (int(active), int(active), search_id, chat_id),
             )
         return cur.rowcount > 0
 
