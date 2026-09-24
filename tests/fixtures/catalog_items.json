@@ -4,9 +4,8 @@
       "id": 5001,
       "title": "Sapatilhas Nike Air <novo> & bonito",
       "price": {"amount": "25.0", "currency_code": "EUR"},
-      "brand_title": "Nike",
-      "size_title": "42",
-      "url": "https://www.vinted.pt/items/5001-sapatilhas",
+      "item_box": {"first_line": "Nike", "second_line": "42 · Muito bom", "item_id": 5001},
+      "url": "/items/5001-sapatilhas",
       "photo": {"url": "https://images1.vinted.net/t/5001.jpeg"}
     },
     {

@@ -7,7 +7,6 @@ from urllib.parse import parse_qsl, urlsplit
 _HOST_RE = re.compile(r"(?:www\.)?vinted\.[a-z]{2,3}(?:\.[a-z]{2})?")
 _PATH_RE = re.compile(r"/catalog(?:/(\d+)(?:-[^/]*)?)?/?")
 _IGNORED = {"page", "per_page", "order", "time", "search_id", "disabled_personalization"}
-_RENAMES = {"catalog": "catalog_ids"}
 
 
 class InvalidSearchUrl(ValueError):
@@ -35,13 +34,13 @@ def parse_search_url(url: str) -> SearchQuery:
     params: dict[str, str] = {}
     for key, value in parse_qsl(parts.query):
         if key.endswith("[]"):
-            base = key[:-2]
-            lists.setdefault(_RENAMES.get(base, base), []).append(value)
+            attribute = key[:-2].removesuffix("_ids")
+            lists.setdefault(attribute, []).append(value)
         elif key not in _IGNORED:
             params[key] = value
-    if path_match.group(1) and "catalog_ids" not in lists:
-        lists["catalog_ids"] = [path_match.group(1)]
-    for key, values in lists.items():
-        params[key] = ",".join(values)
+    if path_match.group(1) and "catalog" not in lists:
+        lists["catalog"] = [path_match.group(1)]
+    for attribute, values in lists.items():
+        params[f"attribute_ids[{attribute}]"] = ",".join(values)
     params["order"] = "newest_first"
     return SearchQuery(domain=host, params=params)

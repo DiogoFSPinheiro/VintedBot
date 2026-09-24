@@ -15,7 +15,7 @@ class Item:
     photo_url: str | None
 
     @classmethod
-    def from_api(cls, data: dict) -> Item:
+    def from_api(cls, data: dict, base_url: str = "") -> Item:
         price = data.get("price")
         if isinstance(price, dict):
             amount = str(price.get("amount") or "")
@@ -24,13 +24,17 @@ class Item:
             amount = str(price or "")
             currency = data.get("currency") or ""
         photo = data.get("photo") or {}
+        box = data.get("item_box") or {}
+        url = data.get("url") or ""
+        if url.startswith("/"):
+            url = base_url + url
         return cls(
             id=int(data["id"]),
             title=data.get("title") or "",
             price=amount,
             currency=currency,
-            size=data.get("size_title") or "",
-            brand=data.get("brand_title") or "",
-            url=data.get("url") or "",
+            size=box.get("second_line") or data.get("size_title") or "",
+            brand=box.get("first_line") or data.get("brand_title") or "",
+            url=url,
             photo_url=photo.get("url"),
         )

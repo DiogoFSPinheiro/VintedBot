@@ -13,13 +13,13 @@ def test_full_search_url_maps_to_api_params():
         domain="www.vinted.pt",
         params={
             "search_text": "nike air",
-            "catalog_ids": "1206",
-            "brand_ids": "53,14",
-            "size_ids": "207",
+            "attribute_ids[catalog]": "1206",
+            "attribute_ids[brand]": "53,14",
+            "attribute_ids[size]": "207",
             "price_from": "5",
             "price_to": "30",
             "currency": "EUR",
-            "status_ids": "6",
+            "attribute_ids[status]": "6",
             "order": "newest_first",
         },
     )
@@ -28,14 +28,20 @@ def test_full_search_url_maps_to_api_params():
 def test_url_encoded_brackets_are_understood():
     q = parse_search_url("https://www.vinted.fr/catalog?brand_ids%5B%5D=53&catalog%5B%5D=5")
     assert q.domain == "www.vinted.fr"
-    assert q.params["brand_ids"] == "53"
-    assert q.params["catalog_ids"] == "5"
+    assert q.params["attribute_ids[brand]"] == "53"
+    assert q.params["attribute_ids[catalog]"] == "5"
 
 
 def test_category_path_sets_catalog_ids():
     q = parse_search_url("https://www.vinted.pt/catalog/1206-men?search_text=casaco")
-    assert q.params["catalog_ids"] == "1206"
+    assert q.params["attribute_ids[catalog]"] == "1206"
     assert q.params["search_text"] == "casaco"
+
+
+def test_other_list_filters_map_to_attribute_ids():
+    q = parse_search_url("https://www.vinted.pt/catalog?color_ids[]=1&color_ids[]=12&material_ids[]=44")
+    assert q.params["attribute_ids[color]"] == "1,12"
+    assert q.params["attribute_ids[material]"] == "44"
 
 
 def test_host_without_www_is_normalised_and_multi_part_tld_accepted():
