@@ -49,11 +49,14 @@ class Monitor:
         ids = [item.id for item in items]
         if not search.primed:
             self._storage.mark_seen(search.id, ids)
+            self._storage.advance_last_item_id(search.id, max(ids, default=0))
             self._storage.mark_primed(search.id)
             return 0
 
+        # Os IDs da Vinted são sequenciais: um ID abaixo do máximo já visto é um artigo antigo
+        # que entrou na 1.ª página (outro foi vendido/apagado), não um artigo novo.
         unseen = set(self._storage.filter_unseen(search.id, ids))
-        new_items = [item for item in items if item.id in unseen]
+        new_items = [item for item in items if item.id in unseen and item.id > search.last_item_id]
         to_send = new_items[:MAX_ALERTS_PER_CYCLE]
         overflow = new_items[MAX_ALERTS_PER_CYCLE:]
         for item in reversed(to_send):
@@ -65,6 +68,7 @@ class Monitor:
                 f"… e mais {len(overflow)} artigos novos em «{search.name}»: {search.url}",
             )
         self._storage.mark_seen(search.id, ids)
+        self._storage.advance_last_item_id(search.id, max(ids, default=0))
         return len(to_send)
 
     async def run_cycle(self) -> None:

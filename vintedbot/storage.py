@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS searches (
     domain TEXT NOT NULL,
     params_json TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1,
-    primed INTEGER NOT NULL DEFAULT 0
+    primed INTEGER NOT NULL DEFAULT 0,
+    last_item_id INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS seen_items (
     search_id INTEGER NOT NULL REFERENCES searches(id) ON DELETE CASCADE,
@@ -37,6 +38,7 @@ class Search:
     params: dict[str, str]
     active: bool
     primed: bool
+    last_item_id: int
 
     @property
     def query(self) -> SearchQuery:
@@ -53,6 +55,7 @@ def _to_search(row: sqlite3.Row) -> Search:
         params=json.loads(row["params_json"]),
         active=bool(row["active"]),
         primed=bool(row["primed"]),
+        last_item_id=row["last_item_id"],
     )
 
 
@@ -62,6 +65,17 @@ class Storage:
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA foreign_keys = ON")
         self._db.executescript(_SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        columns = {row["name"] for row in self._db.execute("PRAGMA table_info(searches)")}
+        if "last_item_id" not in columns:
+            with self._db:
+                self._db.execute("ALTER TABLE searches ADD COLUMN last_item_id INTEGER NOT NULL DEFAULT 0")
+                self._db.execute(
+                    "UPDATE searches SET last_item_id = "
+                    "COALESCE((SELECT MAX(item_id) FROM seen_items WHERE search_id = searches.id), 0)"
+                )
 
     def close(self) -> None:
         self._db.close()
@@ -107,6 +121,13 @@ class Storage:
     def mark_primed(self, search_id: int) -> None:
         with self._db:
             self._db.execute("UPDATE searches SET primed = 1 WHERE id = ?", (search_id,))
+
+    def advance_last_item_id(self, search_id: int, item_id: int) -> None:
+        with self._db:
+            self._db.execute(
+                "UPDATE searches SET last_item_id = MAX(last_item_id, ?) WHERE id = ?",
+                (item_id, search_id),
+            )
 
     def filter_unseen(self, search_id: int, item_ids: list[int]) -> list[int]:
         if not item_ids:

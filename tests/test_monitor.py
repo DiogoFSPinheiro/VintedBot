@@ -150,3 +150,12 @@ async def test_failed_cycle_after_block_is_not_a_recovery():
     await monitor.run_cycle()
     assert "voltou" in notifier.texts[-1][1]
     assert len(notifier.texts) == 2
+
+
+async def test_old_item_entering_the_first_page_is_not_alerted():
+    # O 2 estava fora da 1.ª página ao primar; entra quando o 3 é vendido.
+    storage, _, notifier, _, monitor = _setup([[make_item(5), make_item(4), make_item(3)], [make_item(6), make_item(5), make_item(4), make_item(2)]])
+    _add(storage)
+    await monitor.run_cycle()
+    await monitor.run_cycle()
+    assert [item.id for _, _, item in notifier.items] == [6]

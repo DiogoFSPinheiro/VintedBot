@@ -104,3 +104,38 @@ def test_resume_resets_priming_so_backlog_is_not_alerted():
     assert storage.get_search(s.id).primed is True
     storage.set_active(1, s.id, True)
     assert storage.get_search(s.id).primed is False
+
+
+def test_last_item_id_only_moves_forward():
+    storage = Storage()
+    s = _add(storage)
+    assert s.last_item_id == 0
+    storage.advance_last_item_id(s.id, 50)
+    storage.advance_last_item_id(s.id, 20)
+    assert storage.get_search(s.id).last_item_id == 50
+
+
+def test_existing_database_is_migrated_with_last_item_id_from_seen_items(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "old.db")
+    db = sqlite3.connect(path)
+    db.executescript(
+        """
+        CREATE TABLE searches (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL, name TEXT NOT NULL,
+            url TEXT NOT NULL, domain TEXT NOT NULL, params_json TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1, primed INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE seen_items (search_id INTEGER NOT NULL REFERENCES searches(id) ON DELETE CASCADE,
+            item_id INTEGER NOT NULL, seen_at REAL NOT NULL, PRIMARY KEY (search_id, item_id));
+        INSERT INTO searches (chat_id, name, url, domain, params_json, primed) VALUES (1, 'a', 'u', 'www.vinted.pt', '{}', 1);
+        INSERT INTO searches (chat_id, name, url, domain, params_json) VALUES (1, 'b', 'u', 'www.vinted.pt', '{}');
+        INSERT INTO seen_items VALUES (1, 70, 0), (1, 90, 0);
+        """
+    )
+    db.commit()
+    db.close()
+    storage = Storage(path)
+    assert storage.get_search(1).last_item_id == 90
+    assert storage.get_search(2).last_item_id == 0
+    storage.close()
+    Storage(path).close()  # reabrir não volta a migrar nem falha
