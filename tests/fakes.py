@@ -73,3 +73,15 @@ class FakeNotifier:
 
     async def send_text(self, chat_id, text):
         self.texts.append((chat_id, text))
+
+
+class FakeMonitor:
+    def __init__(self, error=None):
+        self.checked = []
+        self.error = error
+
+    async def check_search(self, search):
+        self.checked.append(search.id)
+        if self.error:
+            raise self.error
+        return 0
