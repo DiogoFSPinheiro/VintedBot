@@ -1,4 +1,4 @@
-/r@echo off
+@echo off
 rem Arranca o VintedBot: cria o venv e instala dependencias na primeira vez.
 setlocal
 cd /d "%~dp0"
