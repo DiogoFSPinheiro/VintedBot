@@ -36,7 +36,9 @@ class VintedClient:
             await self._warm_up(query.domain)
         response = await self._get_items(query)
         if response.status_code in _AUTH_FAILURES:
-            self._warm.discard(query.domain)
+            # Cookies antigos podem impedir a renovação do token: recomeça do zero, como no arranque.
+            self._session.cookies.clear()
+            self._warm.clear()
             await self._warm_up(query.domain)
             response = await self._get_items(query)
         if response.status_code in _BLOCKED:

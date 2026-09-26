@@ -27,12 +27,21 @@ class FakeResponse:
         return self._payload
 
 
+class FakeCookies:
+    def __init__(self, calls):
+        self._calls = calls
+
+    def clear(self):
+        self._calls.append(("clear_cookies", None))
+
+
 class FakeSession:
     """Devolve respostas por ordem. Um item Exception na lista é lançado em vez de devolvido."""
 
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls = []
+        self.cookies = FakeCookies(self.calls)
 
     async def get(self, url, params=None):
         self.calls.append((url, params))

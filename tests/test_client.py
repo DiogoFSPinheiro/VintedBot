@@ -36,7 +36,7 @@ async def test_auth_failure_renews_session_and_retries_once(status):
     session = FakeSession([FakeResponse(200), FakeResponse(status), FakeResponse(200), FakeResponse(200, PAYLOAD)])
     items = await VintedClient(session).search(QUERY)
     assert len(items) == 2
-    assert [c[0] for c in session.calls] == ["https://www.vinted.pt/", API, "https://www.vinted.pt/", API]
+    assert [c[0] for c in session.calls] == ["https://www.vinted.pt/", API, "clear_cookies", "https://www.vinted.pt/", API]
 
 
 async def test_401_twice_is_an_error():
