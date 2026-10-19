@@ -15,5 +15,10 @@ Bot Telegram que monitoriza pesquisas da Vinted. Código e comentários em portu
 - Endpoints antigos que já dão 404: `/api/v2/catalog/items`, `/web/gateway/svc-catalogue/items`
 - 401/403 = token expirado (o cliente limpa os cookies e repete); 403/429 persistentes = bloqueio anti-bot
 
+## Avaliação de preços (`vintedbot/pricing.py`)
+- Corre `claude -p --output-format json --json-schema ...` com o prompt no stdin; a resposta vem em `structured_output`
+- Corre numa thread (`asyncio.to_thread` + `subprocess.run`): o event loop Selector do Windows não suporta subprocessos asyncio
+- `--bare` não serve (exige ANTHROPIC_API_KEY); para tornar a chamada leve usa-se `--tools WebSearch --strict-mcp-config --setting-sources ""`
+
 ## Testes
 - `tests/fakes.py` (`FakeSession`/`FakeResponse`) simula o HTTP; os testes verificam os URLs exatos chamados

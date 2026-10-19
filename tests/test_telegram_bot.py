@@ -86,3 +86,16 @@ def test_caption_shows_total_price_when_different():
 def test_caption_shows_country():
     caption = format_caption(_search("x"), make_item(1, brand="", size="Muito bom", country="🇫🇷 França"))
     assert "Muito bom\n📍 🇫🇷 França\n🔎 x" in caption
+
+
+async def test_price_button_when_enabled_and_item_remembered():
+    from vintedbot.pricing import RecentItems
+
+    bot = FakeBot()
+    recent = RecentItems()
+    search = _search()
+    await TelegramNotifier(bot, recent).send_item(1, search, make_item(5))
+    buttons = bot.sent[0][3].inline_keyboard[0]
+    assert [b.text for b in buttons] == ["Abrir na Vinted", "💡 Avaliar preço"]
+    assert buttons[1].callback_data == "price:5"
+    assert recent.get(5)[1].id == 5

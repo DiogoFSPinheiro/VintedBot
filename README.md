@@ -21,6 +21,8 @@ Bot pessoal que monitoriza pesquisas da Vinted e envia um alerta no Telegram por
 
 Comandos: `/add`, `/list`, `/pause <id>`, `/resume <id>`, `/remove <id>`, `/status`, `/id`.
 
+**Avaliar preço:** se o [Claude Code](https://claude.com/claude-code) (`claude`) estiver instalado e com sessão iniciada, cada alerta tem um botão «💡 Avaliar preço». O bot pesquisa na Vinted anúncios com o mesmo título e pede ao Claude um veredicto (bom negócio / preço justo / caro) com o intervalo de preço justo. Demora 10–30 s, gasta da tua conta Claude e só funciona para alertas recebidos desde o último arranque do bot. Desliga com `PRICE_CHECK=0` no `.env`.
+
 Para testar a ligação à Vinted sem o Telegram:
 `python -m vintedbot.vinted.client "<url da pesquisa>"`
 

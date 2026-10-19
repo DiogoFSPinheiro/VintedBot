@@ -9,11 +9,12 @@ from html import escape
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, RetryAfter
-from telegram.ext import Application, CommandHandler, ContextTypes, filters
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, filters
 
 from vintedbot.commands import HELP, Commands
 from vintedbot.config import Settings
 from vintedbot.monitor import Monitor
+from vintedbot.pricing import PriceChecker, RecentItems, claude_runner, price_check_reply
 from vintedbot.storage import Search, Storage
 from vintedbot.vinted.client import VintedClient
 from vintedbot.vinted.models import Item
@@ -52,14 +53,18 @@ async def _with_flood_retry(send, **kwargs) -> None:
 
 
 class TelegramNotifier:
-    def __init__(self, bot) -> None:
+    def __init__(self, bot, recent: RecentItems | None = None) -> None:
         self._bot = bot
+        # Só com avaliação de preços ativa: guarda o artigo para o botão «Avaliar preço».
+        self._recent = recent
 
     async def send_item(self, chat_id: int, search: Search, item: Item) -> None:
         caption = format_caption(search, item)
-        markup = (
-            InlineKeyboardMarkup([[InlineKeyboardButton("Abrir na Vinted", url=item.url)]]) if item.url else None
-        )
+        buttons = [InlineKeyboardButton("Abrir na Vinted", url=item.url)] if item.url else []
+        if self._recent is not None:
+            self._recent.remember(search, item)
+            buttons.append(InlineKeyboardButton("💡 Avaliar preço", callback_data=f"price:{item.id}"))
+        markup = InlineKeyboardMarkup([buttons]) if buttons else None
         if item.photo_url:
             try:
                 await _with_flood_retry(
@@ -87,7 +92,8 @@ def build_application(settings: Settings, storage: Storage, client: VintedClient
         storage.close()
 
     app = Application.builder().token(settings.telegram_token).post_shutdown(on_shutdown).build()
-    monitor = Monitor(storage, client, TelegramNotifier(app.bot))
+    recent = RecentItems() if settings.claude_bin else None
+    monitor = Monitor(storage, client, TelegramNotifier(app.bot, recent))
     commands = Commands(storage, monitor, poll_interval=settings.poll_interval)
     if settings.allowed_chat_id is None:
         log.warning("ALLOWED_CHAT_ID não definido: envia /id ao bot e põe o valor no .env")
@@ -128,6 +134,26 @@ def build_application(settings: Settings, storage: Storage, client: VintedClient
     app.add_handler(CommandHandler("pause", on_pause, filters=allowed))
     app.add_handler(CommandHandler("resume", on_resume, filters=allowed))
     app.add_handler(CommandHandler("status", on_status, filters=allowed))
+
+    if settings.claude_bin and recent is not None:
+        checker = PriceChecker(client, claude_runner(settings.claude_bin, settings.claude_model))
+
+        async def on_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+            query = update.callback_query
+            if update.effective_chat is None or update.effective_chat.id != settings.allowed_chat_id:
+                await query.answer()
+                return
+            if checker.busy:
+                await query.answer("Já estou a avaliar outro anúncio; tenta daqui a pouco.")
+                return
+            await query.answer()
+            pending = await query.message.reply_text("⏳ A avaliar o preço com o Claude (pode demorar ~30 s)…")
+            text = await price_check_reply(checker, recent, int(query.data.split(":")[1]))
+            await pending.edit_text(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+
+        # block=False: a avaliação demora e não deve atrasar os outros comandos.
+        app.add_handler(CallbackQueryHandler(on_price, pattern=r"^price:\d+$", block=False))
+        log.info("Avaliação de preços ativa (%s, modelo %s)", settings.claude_bin, settings.claude_model)
 
     jitter_s = min(30.0, settings.poll_interval * 0.25)
 
