@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.fakes import FakeResponse, FakeSession
+from tests.fakes import FakeCookie, FakeResponse, FakeSession
 from vintedbot.vinted.client import PER_PAGE, VintedBlockedError, VintedClient, VintedError
 from vintedbot.vinted.url_parser import parse_search_url
 
@@ -78,3 +78,33 @@ async def test_network_failure_is_wrapped():
     with pytest.raises(VintedError) as exc:
         await VintedClient(session).search(QUERY)
     assert not isinstance(exc.value, VintedBlockedError)
+
+
+async def test_sends_locale_from_site_cookie():
+    # Sem o header Locale a Vinted devolve os textos (ex.: estado) em francês.
+    cookies = [FakeCookie("anonymous-iso-locale", "pt-PT", "www.vinted.pt")]
+    session = FakeSession([FakeResponse(200), FakeResponse(200, PAYLOAD)], cookies=cookies)
+    await VintedClient(session).search(QUERY)
+    assert session.headers[1] == {"Locale": "pt-PT"}
+
+
+async def test_no_locale_cookie_sends_no_locale_header():
+    session = FakeSession([FakeResponse(200), FakeResponse(200, PAYLOAD)])
+    await VintedClient(session).search(QUERY)
+    assert not session.headers[1]
+
+
+USER = {"user": {"id": 9, "country_iso_code": "FR", "country_title_local": "França"}}
+
+
+async def test_seller_country_with_flag_and_cache():
+    session = FakeSession([FakeResponse(200, USER)])
+    client = VintedClient(session)
+    assert await client.seller_country("www.vinted.pt", 9) == "🇫🇷 França"
+    assert await client.seller_country("www.vinted.pt", 9) == "🇫🇷 França"
+    assert session.calls == [("https://www.vinted.pt/api/v2/users/9", None)]
+
+
+@pytest.mark.parametrize("response", [FakeResponse(404), FakeResponse(200, None), ConnectionError("dns")])
+async def test_seller_country_failure_returns_none(response):
+    assert await VintedClient(FakeSession([response])).seller_country("www.vinted.pt", 9) is None

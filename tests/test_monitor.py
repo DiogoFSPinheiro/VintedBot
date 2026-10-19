@@ -210,3 +210,15 @@ async def test_status_tracks_success_errors_and_backoff():
 
     await monitor.run_cycle()
     assert monitor.status().blocked_until == clock.now + BASE_BACKOFF_S
+
+
+async def test_alerted_items_get_seller_country():
+    storage = Storage()
+    client = FakeClient([[make_item(1)], [make_item(3, seller_id=7), make_item(2)]], countries={7: "🇫🇷 França"})
+    notifier = FakeNotifier()
+    monitor = Monitor(storage, client, notifier, sleep=_no_sleep)
+    _add(storage)
+    await monitor.run_cycle()
+    await monitor.run_cycle()
+    countries = {item.id: item.country for _, _, item in notifier.items}
+    assert countries == {2: "", 3: "🇫🇷 França"}

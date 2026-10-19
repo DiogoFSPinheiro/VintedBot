@@ -81,3 +81,8 @@ def test_caption_shows_total_price_when_different():
     assert "💶 39.00 EUR (41.65 EUR c/ proteção)" in caption
     caption = format_caption(_search("x"), make_item(1, price="39.00", total_price="39.00"))
     assert "💶 39.00 EUR\n" in caption
+
+
+def test_caption_shows_country():
+    caption = format_caption(_search("x"), make_item(1, brand="", size="Muito bom", country="🇫🇷 França"))
+    assert "Muito bom\n📍 🇫🇷 França\n🔎 x" in caption

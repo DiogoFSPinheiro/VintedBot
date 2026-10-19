@@ -27,9 +27,17 @@ class FakeResponse:
         return self._payload
 
 
+class FakeCookie:
+    def __init__(self, name, value, domain):
+        self.name = name
+        self.value = value
+        self.domain = domain
+
+
 class FakeCookies:
-    def __init__(self, calls):
+    def __init__(self, calls, jar=()):
         self._calls = calls
+        self.jar = list(jar)
 
     def clear(self):
         self._calls.append(("clear_cookies", None))
@@ -38,13 +46,15 @@ class FakeCookies:
 class FakeSession:
     """Devolve respostas por ordem. Um item Exception na lista é lançado em vez de devolvido."""
 
-    def __init__(self, responses):
+    def __init__(self, responses, cookies=()):
         self.responses = list(responses)
         self.calls = []
-        self.cookies = FakeCookies(self.calls)
+        self.headers = []  # headers de cada pedido, pela mesma ordem de calls
+        self.cookies = FakeCookies(self.calls, cookies)
 
-    async def get(self, url, params=None):
+    async def get(self, url, params=None, headers=None):
         self.calls.append((url, params))
+        self.headers.append(headers)
         response = self.responses.pop(0)
         if isinstance(response, Exception):
             raise response
@@ -57,9 +67,13 @@ class FakeSession:
 class FakeClient:
     """Cada chamada a search() consome a próxima resposta: list[Item] ou Exception."""
 
-    def __init__(self, responses):
+    def __init__(self, responses, countries=None):
         self.responses = list(responses)
         self.queries = []
+        self.countries = countries or {}  # seller_id -> texto do país
+
+    async def seller_country(self, domain, seller_id):
+        return self.countries.get(seller_id)
 
     async def search(self, query):
         self.queries.append(query)

@@ -15,6 +15,9 @@ class Item:
     photo_url: str | None
     # Preço com a proteção do comprador (o que se paga de facto); "" quando a API não o devolve.
     total_price: str = ""
+    seller_id: int | None = None
+    # Preenchido pelo Monitor só para os artigos que vão ser alertados (pedido extra à Vinted).
+    country: str = ""
 
     @classmethod
     def from_api(cls, data: dict, base_url: str = "") -> Item:
@@ -28,6 +31,7 @@ class Item:
         total = data.get("total_item_price")
         total_amount = str(total.get("amount") or "") if isinstance(total, dict) else ""
         photo = data.get("photo") or {}
+        seller_id = (data.get("user") or {}).get("id")
         box = data.get("item_box") or {}
         title = data.get("title") or ""
         # Sem marca, a Vinted põe o título no first_line: não é uma marca.
@@ -47,4 +51,5 @@ class Item:
             url=url,
             photo_url=photo.get("url"),
             total_price=total_amount,
+            seller_id=int(seller_id) if seller_id is not None else None,
         )

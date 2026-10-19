@@ -9,6 +9,8 @@ Bot Telegram que monitoriza pesquisas da Vinted. Código e comentários em portu
 
 ## API da Vinted (não oficial, muda sem aviso)
 - Pesquisa: `GET https://api.<domínio sem www>/svc-catalogue/items`, com os cookies obtidos ao pedir `https://www.<domínio>/`
+- A gateway precisa do header `Locale: <cookie anonymous-iso-locale>` (ex.: pt-PT); sem ele os textos vêm em francês
+- País do vendedor: `GET https://www.<domínio>/api/v2/users/<id>` (`country_title_local`, `country_iso_code`)
 - Se todas as pesquisas derem 404, o endpoint mudou: ver no bundle JS da página `/catalog` os caminhos `svc-catalogue` e o `baseURL` da gateway
 - Endpoints antigos que já dão 404: `/api/v2/catalog/items`, `/web/gateway/svc-catalogue/items`
 - 401/403 = token expirado (o cliente limpa os cookies e repete); 403/429 persistentes = bloqueio anti-bot

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 from vintedbot.storage import Search, Storage
@@ -87,6 +87,10 @@ class Monitor:
         to_send = new_items[:MAX_ALERTS_PER_CYCLE]
         overflow = new_items[MAX_ALERTS_PER_CYCLE:]
         for item in reversed(to_send):
+            if item.seller_id is not None:
+                country = await self._client.seller_country(search.domain, item.seller_id)
+                if country:
+                    item = replace(item, country=country)
             await self._notifier.send_item(search.chat_id, search, item)
             self._storage.mark_seen(search.id, [item.id])
         if overflow:

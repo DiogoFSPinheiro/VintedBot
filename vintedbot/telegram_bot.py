@@ -33,6 +33,8 @@ def format_caption(search: Search, item: Item) -> str:
     details = " · ".join(part for part in (item.brand, item.size) if part)
     if details:
         lines.append(escape(details))
+    if item.country:
+        lines.append(f"📍 {escape(item.country)}")
     lines.append(f"🔎 {escape(search.name)}")
     return "\n".join(lines)
 

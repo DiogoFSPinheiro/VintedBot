@@ -55,3 +55,8 @@ def test_from_api_ignores_first_line_when_it_is_the_title():
     item = Item.from_api(raw)
     assert item.brand == ""
     assert item.size == "Muito bom"
+
+
+def test_from_api_reads_seller_id():
+    assert Item.from_api({"id": 1, "user": {"id": 42}}).seller_id == 42
+    assert Item.from_api({"id": 1}).seller_id is None
