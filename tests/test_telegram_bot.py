@@ -74,3 +74,10 @@ async def test_retry_after_waits_and_retries_once(monkeypatch):
     await TelegramNotifier(bot).send_item(1, _search(), make_item(1, photo_url="https://img/1.jpg"))
     assert [s[0] for s in bot.sent] == ["photo"]
     assert slept and slept[0] >= 3
+
+
+def test_caption_shows_total_price_when_different():
+    caption = format_caption(_search("x"), make_item(1, price="39.00", total_price="41.65", brand="", size=""))
+    assert "💶 39.00 EUR (41.65 EUR c/ proteção)" in caption
+    caption = format_caption(_search("x"), make_item(1, price="39.00", total_price="39.00"))
+    assert "💶 39.00 EUR\n" in caption

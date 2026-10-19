@@ -16,6 +16,7 @@ def test_from_api_current_format_with_item_box_and_relative_url():
         id=5001,
         title="Sapatilhas Nike Air <novo> & bonito",
         price="25.0",
+        total_price="26.95",
         currency="EUR",
         size="42 · Muito bom",
         brand="Nike",
@@ -27,6 +28,7 @@ def test_from_api_current_format_with_item_box_and_relative_url():
 def test_from_api_with_legacy_price_and_no_photo():
     item = Item.from_api(_raw_items()[1])
     assert item.price == "12.5"
+    assert item.total_price == ""
     assert item.currency == "EUR"
     assert item.brand == ""
     assert item.size == "M"
@@ -40,3 +42,16 @@ def test_from_api_tolerates_missing_optional_fields():
     assert item.title == ""
     assert item.price == ""
     assert item.photo_url is None
+
+
+def test_from_api_ignores_first_line_when_it_is_the_title():
+    # Sem marca, a Vinted põe o título no item_box.first_line.
+    raw = {
+        "id": 8,
+        "title": "Xenoblade Chronicles",
+        "brand_title": "",
+        "item_box": {"first_line": "Xenoblade Chronicles", "second_line": "Muito bom"},
+    }
+    item = Item.from_api(raw)
+    assert item.brand == ""
+    assert item.size == "Muito bom"

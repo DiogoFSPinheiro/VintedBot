@@ -4,6 +4,7 @@
       "id": 5001,
       "title": "Sapatilhas Nike Air <novo> & bonito",
       "price": {"amount": "25.0", "currency_code": "EUR"},
+      "total_item_price": {"amount": "26.95", "currency_code": "EUR"},
       "item_box": {"first_line": "Nike", "second_line": "42 · Muito bom", "item_id": 5001},
       "url": "/items/5001-sapatilhas",
       "photo": {"url": "https://images1.vinted.net/t/5001.jpeg"}
