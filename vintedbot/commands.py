@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from vintedbot.storage import Storage
 from vintedbot.vinted.client import VintedError
 from vintedbot.vinted.url_parser import InvalidSearchUrl, parse_search_url
@@ -11,8 +13,13 @@ HELP = (
     "/pause <id> – pausar\n"
     "/resume <id> – retomar\n"
     "/remove <id> – apagar\n"
+    "/status – ver se o bot está a funcionar\n"
     "/id – mostrar o chat id"
 )
+
+
+def _hhmm(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp).strftime("%H:%M")
 
 
 def _parse_id(args: list[str]) -> int | None:
@@ -23,9 +30,10 @@ def _parse_id(args: list[str]) -> int | None:
 
 
 class Commands:
-    def __init__(self, storage: Storage, monitor) -> None:
+    def __init__(self, storage: Storage, monitor, *, poll_interval: int) -> None:
         self._storage = storage
         self._monitor = monitor
+        self._poll_interval = poll_interval
 
     async def add(self, chat_id: int, args: list[str]) -> str:
         if not args:
@@ -67,3 +75,21 @@ class Commands:
         if not self._storage.set_active(chat_id, search_id, active):
             return f"A pesquisa #{search_id} não existe."
         return f"▶️ Pesquisa #{search_id} retomada." if active else f"⏸ Pesquisa #{search_id} em pausa."
+
+    def status(self, chat_id: int) -> str:
+        status = self._monitor.status()
+        if status.last_success_at is None:
+            lines = ["⏳ Ainda nenhum ciclo com sucesso desde o arranque."]
+        else:
+            minutes = int((status.now - status.last_success_at) // 60)
+            ago = f"há {minutes} min" if minutes else "há menos de 1 min"
+            lines = [f"✅ Último ciclo com sucesso: {_hhmm(status.last_success_at)} ({ago})"]
+        if status.error_cycles:
+            lines.append(f"⚠️ {status.error_cycles} ciclos seguidos com erro ({status.last_error})")
+        if status.blocked_until is not None:
+            lines.append(f"⏳ Em pausa por bloqueio até {_hhmm(status.blocked_until)}")
+        searches = self._storage.list_searches(chat_id=chat_id)
+        active = sum(1 for search in searches if search.active)
+        lines.append(f"Pesquisas ativas: {active} de {len(searches)}")
+        lines.append(f"Intervalo: {self._poll_interval} s")
+        return "\n".join(lines)

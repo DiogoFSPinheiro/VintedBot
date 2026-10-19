@@ -1,5 +1,8 @@
+from datetime import datetime
+
 from tests.fakes import FakeMonitor
 from vintedbot.commands import Commands
+from vintedbot.monitor import MonitorStatus
 from vintedbot.storage import Storage
 from vintedbot.vinted.client import VintedBlockedError
 
@@ -8,7 +11,20 @@ URL = "https://www.vinted.pt/catalog?search_text=nike+air&price_to=30"
 
 def _commands(monitor=None):
     storage = Storage()
-    return storage, Commands(storage, monitor or FakeMonitor())
+    return storage, Commands(storage, monitor or FakeMonitor(), poll_interval=120)
+
+
+NOW = 1_800_000_000.0
+
+
+def _hhmm(ts):
+    return datetime.fromtimestamp(ts).strftime("%H:%M")
+
+
+def _status(**overrides):
+    fields = dict(now=NOW, last_success_at=NOW - 90, error_cycles=0, last_error=None, blocked_until=None)
+    fields.update(overrides)
+    return MonitorStatus(**fields)
 
 
 async def test_add_stores_search_and_primes_it():
@@ -72,3 +88,25 @@ async def test_pause_and_resume():
     assert "retomada" in commands.set_active(1, ["#1"], True)
     assert storage.get_search(1).active is True
     assert "não existe" in commands.set_active(1, ["9"], True)
+
+
+async def test_status_when_healthy():
+    storage, commands = _commands(FakeMonitor(status=_status()))
+    await commands.add(1, [URL])
+    await commands.add(1, [URL, "outra"])
+    commands.set_active(1, ["2"], False)
+    await commands.add(2, [URL])  # outro chat não conta
+    assert commands.status(1) == (
+        f"✅ Último ciclo com sucesso: {_hhmm(NOW - 90)} (há 1 min)\n"
+        "Pesquisas ativas: 1 de 2\n"
+        "Intervalo: 120 s"
+    )
+
+
+async def test_status_with_errors_and_backoff():
+    status = _status(last_success_at=None, error_cycles=3, last_error="HTTP 404", blocked_until=NOW + 300)
+    _, commands = _commands(FakeMonitor(status=status))
+    reply = commands.status(1)
+    assert "Ainda nenhum ciclo com sucesso" in reply
+    assert "⚠️ 3 ciclos seguidos com erro (HTTP 404)" in reply
+    assert f"⏳ Em pausa por bloqueio até {_hhmm(NOW + 300)}" in reply

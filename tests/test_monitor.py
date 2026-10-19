@@ -1,6 +1,7 @@
 from tests.fakes import FakeClient, FakeNotifier, make_item
 from vintedbot.monitor import (
     BASE_BACKOFF_S,
+    ERROR_WARN_AFTER_CYCLES,
     MAX_ALERTS_PER_CYCLE,
     MAX_BACKOFF_S,
     WARN_AFTER_FAILURES,
@@ -28,7 +29,7 @@ def _setup(responses, notifier=None):
     client = FakeClient(responses)
     notifier = notifier or FakeNotifier()
     clock = Clock()
-    monitor = Monitor(storage, client, notifier, clock=clock, sleep=_no_sleep)
+    monitor = Monitor(storage, client, notifier, clock=clock, wall_clock=clock, sleep=_no_sleep)
     return storage, client, notifier, clock, monitor
 
 
@@ -159,3 +160,53 @@ async def test_old_item_entering_the_first_page_is_not_alerted():
     await monitor.run_cycle()
     await monitor.run_cycle()
     assert [item.id for _, _, item in notifier.items] == [6]
+
+
+async def test_all_searches_failing_warns_once_and_recovers():
+    errors = [VintedError("HTTP 404") for _ in range(ERROR_WARN_AFTER_CYCLES + 1)]
+    storage, _, notifier, _, monitor = _setup(errors + [[make_item(1)]])
+    _add(storage)
+    for _ in range(ERROR_WARN_AFTER_CYCLES - 1):
+        await monitor.run_cycle()
+    assert notifier.texts == []
+    await monitor.run_cycle()
+    assert len(notifier.texts) == 1
+    assert "HTTP 404" in notifier.texts[0][1]
+    await monitor.run_cycle()  # continua a falhar: não repete o aviso
+    assert len(notifier.texts) == 1
+    await monitor.run_cycle()
+    assert len(notifier.texts) == 2
+    assert "voltaram" in notifier.texts[1][1]
+
+
+async def test_partial_failure_is_not_warned():
+    responses = []
+    for _ in range(ERROR_WARN_AFTER_CYCLES):
+        responses += [VintedError("HTTP 404"), [make_item(1)]]
+    storage, _, notifier, _, monitor = _setup(responses)
+    _add(storage, text="a")
+    _add(storage, text="b")
+    for _ in range(ERROR_WARN_AFTER_CYCLES):
+        await monitor.run_cycle()
+    assert notifier.texts == []
+
+
+async def test_status_tracks_success_errors_and_backoff():
+    storage, _, _, clock, monitor = _setup([[make_item(1)], VintedError("HTTP 404"), VintedBlockedError(429)])
+    _add(storage)
+    assert monitor.status().last_success_at is None
+
+    await monitor.run_cycle()
+    status = monitor.status()
+    assert status.last_success_at == clock.now
+    assert status.error_cycles == 0
+
+    clock.now += 100
+    await monitor.run_cycle()
+    status = monitor.status()
+    assert status.last_success_at == clock.now - 100
+    assert (status.error_cycles, status.last_error) == (1, "HTTP 404")
+    assert status.blocked_until is None
+
+    await monitor.run_cycle()
+    assert monitor.status().blocked_until == clock.now + BASE_BACKOFF_S

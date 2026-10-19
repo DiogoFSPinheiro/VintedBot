@@ -85,9 +85,13 @@ class FakeNotifier:
 
 
 class FakeMonitor:
-    def __init__(self, error=None):
+    def __init__(self, error=None, status=None):
         self.checked = []
         self.error = error
+        self._status = status
+
+    def status(self):
+        return self._status
 
     async def check_search(self, search):
         self.checked.append(search.id)

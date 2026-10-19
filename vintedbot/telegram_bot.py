@@ -26,7 +26,10 @@ SEEN_RETENTION_S = 30 * 86400
 
 def format_caption(search: Search, item: Item) -> str:
     title = item.title if len(item.title) <= MAX_TITLE else item.title[: MAX_TITLE - 1] + "…"
-    lines = [f"<b>{escape(title)}</b>", f"💶 {escape(item.price)} {escape(item.currency)}".rstrip()]
+    price = f"💶 {escape(item.price)} {escape(item.currency)}".rstrip()
+    if item.total_price and item.total_price != item.price:
+        price += f" ({escape(item.total_price)} {escape(item.currency)} c/ proteção)"
+    lines = [f"<b>{escape(title)}</b>", price]
     details = " · ".join(part for part in (item.brand, item.size) if part)
     if details:
         lines.append(escape(details))
@@ -83,7 +86,7 @@ def build_application(settings: Settings, storage: Storage, client: VintedClient
 
     app = Application.builder().token(settings.telegram_token).post_shutdown(on_shutdown).build()
     monitor = Monitor(storage, client, TelegramNotifier(app.bot))
-    commands = Commands(storage, monitor)
+    commands = Commands(storage, monitor, poll_interval=settings.poll_interval)
     if settings.allowed_chat_id is None:
         log.warning("ALLOWED_CHAT_ID não definido: envia /id ao bot e põe o valor no .env")
     allowed = filters.Chat(chat_id=[] if settings.allowed_chat_id is None else [settings.allowed_chat_id])
@@ -112,6 +115,9 @@ def build_application(settings: Settings, storage: Storage, client: VintedClient
     async def on_resume(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await reply(update, commands.set_active(update.effective_chat.id, context.args, True))
 
+    async def on_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        await reply(update, commands.status(update.effective_chat.id))
+
     app.add_handler(CommandHandler("id", on_id))
     app.add_handler(CommandHandler(["start", "help"], on_start, filters=allowed))
     app.add_handler(CommandHandler("add", on_add, filters=allowed))
@@ -119,6 +125,7 @@ def build_application(settings: Settings, storage: Storage, client: VintedClient
     app.add_handler(CommandHandler("remove", on_remove, filters=allowed))
     app.add_handler(CommandHandler("pause", on_pause, filters=allowed))
     app.add_handler(CommandHandler("resume", on_resume, filters=allowed))
+    app.add_handler(CommandHandler("status", on_status, filters=allowed))
 
     jitter_s = min(30.0, settings.poll_interval * 0.25)
 

@@ -19,7 +19,7 @@ Bot pessoal que monitoriza pesquisas da Vinted e envia um alerta no Telegram por
 2. Copia o URL e envia `/add <url> [nome]` ao bot.
 3. A partir daí recebes um alerta por cada artigo novo (no máximo 10 por ciclo; o resto vem resumido).
 
-Comandos: `/add`, `/list`, `/pause <id>`, `/resume <id>`, `/remove <id>`, `/id`.
+Comandos: `/add`, `/list`, `/pause <id>`, `/resume <id>`, `/remove <id>`, `/status`, `/id`.
 
 Para testar a ligação à Vinted sem o Telegram:
 `python -m vintedbot.vinted.client "<url da pesquisa>"`
