@@ -9,7 +9,7 @@ from vintedbot.vinted.url_parser import parse_search_url
 
 PAYLOAD = json.loads((Path(__file__).parent / "fixtures" / "catalog_items.json").read_text(encoding="utf-8"))
 QUERY = parse_search_url("https://www.vinted.pt/catalog?search_text=nike")
-API = "https://www.vinted.pt/web/gateway/svc-catalogue/items"
+API = "https://api.vinted.pt/svc-catalogue/items"
 
 
 async def test_first_search_warms_up_then_fetches_items():

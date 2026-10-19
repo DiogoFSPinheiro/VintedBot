@@ -63,7 +63,9 @@ class VintedClient:
 
     async def _get_items(self, query: SearchQuery):
         params = {**query.params, "page": "1", "per_page": str(PER_PAGE)}
-        return await self._get(f"https://{query.domain}/web/gateway/svc-catalogue/items", params)
+        # A gateway saiu de /web/gateway para o subdomínio api.<domínio> (out/2026).
+        api_host = "api." + query.domain.removeprefix("www.")
+        return await self._get(f"https://{api_host}/svc-catalogue/items", params)
 
     async def _get(self, url: str, params: dict[str, str] | None = None):
         try:
