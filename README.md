@@ -20,7 +20,8 @@ Precisa de Python 3 com `venv` (`sudo apt install python3-venv`) e, num Pi, de u
 1. Copiar o `.env` (e o `vintedbot.db`, para manter as pesquisas) para a pasta do projeto.
 2. `./vintedbot.sh`: cria o `.venv` na primeira vez e arranca o bot. Ctrl+C para parar.
 3. `./vintedbot.sh install`: instala o serviço `systemd`, que arranca com o sistema e reinicia se o bot cair.
-   - Log: `journalctl -u vintedbot -f` · Reiniciar depois de um `git pull`: `sudo systemctl restart vintedbot`
+   - Log: `journalctl -u vintedbot -f` · Estado: `sudo systemctl status vintedbot`
+4. Atualizar: `./deploy.sh` faz `git pull`, instala as dependências se mudaram, corre os testes e só reinicia o serviço se passarem. `./deploy.sh --force` reinicia mesmo sem alterações.
 
 > Só pode haver **um** bot a correr com o mesmo token: desliga o do PC antes de ligar o do Pi (senão o Telegram dá `409 Conflict`).
 
