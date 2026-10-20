@@ -71,6 +71,7 @@ async def test_check_with_malformed_answer_raises():
 def test_format_verdict_escapes_and_formats_prices():
     text = format_verdict(ITEM, PriceVerdict("preço justo", 29, 36.5, 6, "Está no meio dos <comparáveis>."))
     assert text == (
+        "📦 Xenoblade Chronicles 3\n"
         "🟡 <b>Preço justo</b>: 34.99 EUR (37.44 EUR c/ proteção)\n"
         "💰 Valor de mercado: 29–36.5 EUR · 6 anúncios comparáveis\n"
         "Está no meio dos &lt;comparáveis&gt;."
@@ -95,7 +96,7 @@ async def test_reply_with_verdict():
     recent = RecentItems()
     recent.remember(_search(), ITEM)
     reply = await price_check_reply(PriceChecker(FakeClient([[]]), FakeRunner()), recent, ITEM.id)
-    assert reply.startswith("🟡 <b>Preço justo</b>")
+    assert "🟡 <b>Preço justo</b>" in reply
 
 
 def test_recent_items_forgets_oldest():

@@ -52,6 +52,14 @@ async def _with_flood_retry(send, **kwargs) -> None:
         await send(**kwargs)
 
 
+def verdict_markup(recent: RecentItems, item_id: int) -> InlineKeyboardMarkup | None:
+    # A análise pode chegar muito depois do alerta: leva de volta ao anúncio sem ter de o procurar.
+    remembered = recent.get(item_id)
+    if remembered is None or not remembered[1].url:
+        return None
+    return InlineKeyboardMarkup([[InlineKeyboardButton("Abrir anúncio na Vinted", url=remembered[1].url)]])
+
+
 class TelegramNotifier:
     def __init__(self, bot, recent: RecentItems | None = None) -> None:
         self._bot = bot
@@ -148,8 +156,14 @@ def build_application(settings: Settings, storage: Storage, client: VintedClient
                 return
             await query.answer()
             pending = await query.message.reply_text("⏳ A avaliar o preço com o Claude (pode demorar ~30 s)…")
-            text = await price_check_reply(checker, recent, int(query.data.split(":")[1]))
-            await pending.edit_text(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+            item_id = int(query.data.split(":")[1])
+            text = await price_check_reply(checker, recent, item_id)
+            await pending.edit_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+                reply_markup=verdict_markup(recent, item_id),
+            )
 
         # block=False: a avaliação demora e não deve atrasar os outros comandos.
         app.add_handler(CallbackQueryHandler(on_price, pattern=r"^price:\d+$", block=False))

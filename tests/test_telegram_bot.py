@@ -99,3 +99,16 @@ async def test_price_button_when_enabled_and_item_remembered():
     assert [b.text for b in buttons] == ["Abrir na Vinted", "💡 Avaliar preço"]
     assert buttons[1].callback_data == "price:5"
     assert recent.get(5)[1].id == 5
+
+
+def test_verdict_has_button_back_to_the_listing():
+    from vintedbot.pricing import RecentItems
+    from vintedbot.telegram_bot import verdict_markup
+
+    recent = RecentItems()
+    recent.remember(_search(), make_item(5))
+    recent.remember(_search(), make_item(6, url=""))
+    button = verdict_markup(recent, 5).inline_keyboard[0][0]
+    assert (button.text, button.url) == ("Abrir anúncio na Vinted", "https://www.vinted.pt/items/5")
+    assert verdict_markup(recent, 6) is None
+    assert verdict_markup(recent, 99) is None

@@ -178,6 +178,7 @@ def format_verdict(item: Item, verdict: PriceVerdict) -> str:
     reason = verdict.reason if len(verdict.reason) <= MAX_REASON else verdict.reason[: MAX_REASON - 1] + "…"
     return "\n".join(
         [
+            f"📦 {escape(item.title)}",
             f"{emoji} <b>{escape(verdict.verdict.capitalize())}</b>: {price}",
             f"💰 Valor de mercado: {_money(verdict.fair_min)}–{_money(verdict.fair_max)} {currency}"
             f" · {verdict.comparables} anúncios comparáveis",
