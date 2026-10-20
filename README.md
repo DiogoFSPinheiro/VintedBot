@@ -13,6 +13,17 @@ Bot pessoal que monitoriza pesquisas da Vinted e envia um alerta no Telegram por
 5. `copy .env.example .env` e preencher `TELEGRAM_TOKEN`.
 6. `python -m vintedbot.main`, enviar `/id` ao bot, pôr o número em `ALLOWED_CHAT_ID` no `.env` e reiniciar.
 
+## Setup (Linux / Raspberry Pi)
+
+Precisa de Python 3 com `venv` (`sudo apt install python3-venv`) e, num Pi, de um sistema de 64 bits.
+
+1. Copiar o `.env` (e o `vintedbot.db`, para manter as pesquisas) para a pasta do projeto.
+2. `./vintedbot.sh`: cria o `.venv` na primeira vez e arranca o bot. Ctrl+C para parar.
+3. `./vintedbot.sh install`: instala o serviço `systemd`, que arranca com o sistema e reinicia se o bot cair.
+   - Log: `journalctl -u vintedbot -f` · Reiniciar depois de um `git pull`: `sudo systemctl restart vintedbot`
+
+> Só pode haver **um** bot a correr com o mesmo token: desliga o do PC antes de ligar o do Pi (senão o Telegram dá `409 Conflict`).
+
 ## Utilização
 
 1. Na Vinted, faz a pesquisa com os filtros que quiseres (marca, tamanho, preço, estado…).
