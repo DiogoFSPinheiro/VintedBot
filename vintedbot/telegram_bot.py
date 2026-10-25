@@ -155,7 +155,7 @@ def build_application(settings: Settings, storage: Storage, client: VintedClient
                 await query.answer("Já estou a avaliar outro anúncio; tenta daqui a pouco.")
                 return
             await query.answer()
-            pending = await query.message.reply_text("⏳ A avaliar o preço com o Claude (pode demorar ~30 s)…")
+            pending = await query.message.reply_text("⏳ A avaliar o preço com o Claude (pode demorar ~1 min)…")
             item_id = int(query.data.split(":")[1])
             text = await price_check_reply(checker, recent, item_id)
             await pending.edit_text(

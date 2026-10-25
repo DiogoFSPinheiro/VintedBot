@@ -18,6 +18,7 @@ Bot Telegram que monitoriza pesquisas da Vinted. Código e comentários em portu
 ## Avaliação de preços (`vintedbot/pricing.py`)
 - Corre `claude -p --output-format json --json-schema ...` com o prompt no stdin; a resposta vem em `structured_output`
 - Corre numa thread (`asyncio.to_thread` + `subprocess.run`): o event loop Selector do Windows não suporta subprocessos asyncio
+- Pesquisa web nas lojas (preço novo / usado em loja) é obrigatória no prompt; os resultados do WebSearch variam entre corridas, `WebFetch` não trouxe ganhos
 - `--bare` não serve (exige ANTHROPIC_API_KEY); para tornar a chamada leve usa-se `--tools WebSearch --strict-mcp-config --setting-sources ""`
 
 ## Testes

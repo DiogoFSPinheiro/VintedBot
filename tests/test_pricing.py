@@ -61,6 +61,20 @@ async def test_check_searches_title_and_sends_comparables_to_claude():
     assert "Xenoblade Collector | 90.0 EUR" in prompt
     assert prompt.count("Xenoblade Chronicles 3") == 1  # o próprio anúncio não é comparável
     assert verdict == PriceVerdict("preço justo", 29, 36.5, 6, "Está no meio dos <comparáveis>.")
+    assert "obrigatório" in prompt and "Fnac" in prompt and "CEX" in prompt
+
+
+async def test_check_reads_store_prices():
+    answer = {
+        **ANSWER,
+        "preco_novo": 49.85,
+        "loja_novo": "Fnac",
+        "preco_usado_loja": None,
+        "loja_usado": None,
+    }
+    verdict = await PriceChecker(FakeClient([[]]), FakeRunner(answer=answer)).check(_search(), ITEM)
+    assert (verdict.new_price, verdict.new_store) == (49.85, "Fnac")
+    assert (verdict.used_store_price, verdict.used_store) == (None, None)
 
 
 async def test_check_with_malformed_answer_raises():
@@ -76,6 +90,21 @@ def test_format_verdict_escapes_and_formats_prices():
         "💰 Valor de mercado: 29–36.5 EUR · 6 anúncios comparáveis\n"
         "Está no meio dos &lt;comparáveis&gt;."
     )
+
+
+def test_format_verdict_with_store_prices_and_savings():
+    verdict = PriceVerdict("bom negócio", 29, 36.5, 6, "Ok.", new_price=49.85, new_store="Fnac",
+                           used_store_price=30, used_store="CEX")  # fmt: skip
+    lines = format_verdict(ITEM, verdict).split("\n")
+    # Poupança calculada sobre o total pago (37.44) face ao novo (49.85).
+    assert lines[3] == "🏬 Novo: 49.85 EUR (Fnac, poupas 25%) · Usado em loja: 30 EUR (CEX)"
+
+
+def test_format_verdict_when_dearer_than_new_or_only_used_store():
+    dearer = PriceVerdict("caro", 29, 36.5, 6, "Ok.", new_price=30, new_store="Worten")
+    assert "🏬 Novo: 30 EUR (Worten, 25% mais caro que novo)" in format_verdict(ITEM, dearer)
+    used_only = PriceVerdict("caro", 29, 36.5, 6, "Ok.", used_store_price=28, used_store="CEX")
+    assert "🏬 Usado em loja: 28 EUR (CEX)\n" in format_verdict(ITEM, used_only)
 
 
 async def test_reply_for_unknown_item_explains_restart():

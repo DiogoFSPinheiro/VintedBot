@@ -17,15 +17,19 @@ from vintedbot.vinted.url_parser import SearchQuery
 log = logging.getLogger(__name__)
 
 MAX_COMPARABLES = 30
-CLAUDE_TIMEOUT_S = 180
+CLAUDE_TIMEOUT_S = 240  # com pesquisa web obrigatória a análise demora mais
 MAX_REASON = 1500
 
 VERDICT_EMOJI = {"bom negócio": "🟢", "preço justo": "🟡", "caro": "🔴", "incerto": "⚪"}
 
 SYSTEM_PROMPT = (
     "És um avaliador de preços de artigos em segunda mão vendidos na Vinted. "
+    "Comparas sempre com anúncios da Vinted e com o preço em lojas portuguesas, que pesquisas na web. "
     "Respondes sempre em português de Portugal, de forma concisa."
 )
+
+_NULLABLE_NUMBER = {"type": ["number", "null"]}
+_NULLABLE_STRING = {"type": ["string", "null"]}
 
 SCHEMA = {
     "type": "object",
@@ -34,10 +38,17 @@ SCHEMA = {
         "preco_justo_min": {"type": "number"},
         "preco_justo_max": {"type": "number"},
         "comparaveis": {"type": "integer", "description": "Quantos anúncios da lista são de facto comparáveis"},
+        "preco_novo": {**_NULLABLE_NUMBER, "description": "Preço mais baixo do artigo novo numa loja portuguesa"},
+        "loja_novo": {**_NULLABLE_STRING, "description": "Loja desse preço novo (ex.: Fnac)"},
+        "preco_usado_loja": {**_NULLABLE_NUMBER, "description": "Preço de usado numa loja (ex.: CEX), se houver"},
+        "loja_usado": {**_NULLABLE_STRING, "description": "Loja desse preço de usado"},
         "razao": {"type": "string", "description": "No máximo 3 frases"},
     },
-    "required": ["veredicto", "preco_justo_min", "preco_justo_max", "comparaveis", "razao"],
-}
+    "required": [
+        "veredicto", "preco_justo_min", "preco_justo_max", "comparaveis",
+        "preco_novo", "loja_novo", "preco_usado_loja", "loja_usado", "razao",
+    ],
+}  # fmt: skip
 
 
 class PriceCheckError(Exception):
@@ -51,6 +62,10 @@ class PriceVerdict:
     fair_max: float
     comparables: int
     reason: str
+    new_price: float | None = None
+    new_store: str | None = None
+    used_store_price: float | None = None
+    used_store: str | None = None
 
 
 class RecentItems:
@@ -91,8 +106,11 @@ def build_prompt(search: Search, item: Item, others: list[Item]) -> str:
     lines += [f"- {_describe(other)}" for other in others] or ["(nenhum)"]
     lines += [
         "",
-        "Os preços da Vinted são pedidos, não vendas. Se ajudar, pesquisa na web o preço novo atual "
-        "em Portugal. Dá o intervalo de preço justo em segunda mão na mesma moeda do anúncio.",
+        "Os preços da Vinted são pedidos, não vendas. Pesquisar na web é obrigatório: procura o preço "
+        "atual do artigo novo em lojas portuguesas (ex.: Fnac, Worten, KuantoKusta, Continente, Amazon.es) "
+        "e, se existir, o preço de usado em lojas como a CEX. Começa pelo KuantoKusta, que compara várias "
+        "lojas, e se não encontrares tenta outra pesquisa antes de desistir. Usa null no que não encontrares. "
+        "Dá o intervalo de preço justo em segunda mão na mesma moeda do anúncio.",
     ]
     return "\n".join(lines)
 
@@ -160,13 +178,45 @@ class PriceChecker:
                 fair_max=float(answer["preco_justo_max"]),
                 comparables=int(answer["comparaveis"]),
                 reason=str(answer["razao"]),
+                new_price=_optional_float(answer.get("preco_novo")),
+                new_store=answer.get("loja_novo") or None,
+                used_store_price=_optional_float(answer.get("preco_usado_loja")),
+                used_store=answer.get("loja_usado") or None,
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise PriceCheckError("resposta incompleta do Claude") from exc
 
 
+def _optional_float(value) -> float | None:
+    return None if value is None else float(value)
+
+
 def _money(value: float) -> str:
     return f"{value:.2f}".rstrip("0").rstrip(".")
+
+
+def _store_line(item: Item, verdict: PriceVerdict) -> str | None:
+    currency = escape(item.currency)
+    parts = []
+    if verdict.new_price:
+        notes = [escape(verdict.new_store)] if verdict.new_store else []
+        try:
+            # Compara com o que se paga de facto (com a proteção do comprador).
+            paid = float(item.total_price or item.price)
+        except ValueError:
+            paid = None
+        if paid:
+            diff = round((1 - paid / verdict.new_price) * 100)
+            if diff > 0:
+                notes.append(f"poupas {diff}%")
+            elif diff < 0:
+                notes.append(f"{-diff}% mais caro que novo")
+        suffix = f" ({', '.join(notes)})" if notes else ""
+        parts.append(f"Novo: {_money(verdict.new_price)} {currency}{suffix}")
+    if verdict.used_store_price:
+        suffix = f" ({escape(verdict.used_store)})" if verdict.used_store else ""
+        parts.append(f"Usado em loja: {_money(verdict.used_store_price)} {currency}{suffix}")
+    return "🏬 " + " · ".join(parts) if parts else None
 
 
 def format_verdict(item: Item, verdict: PriceVerdict) -> str:
@@ -176,15 +226,17 @@ def format_verdict(item: Item, verdict: PriceVerdict) -> str:
     if item.total_price and item.total_price != item.price:
         price += f" ({escape(item.total_price)} {currency} c/ proteção)"
     reason = verdict.reason if len(verdict.reason) <= MAX_REASON else verdict.reason[: MAX_REASON - 1] + "…"
-    return "\n".join(
-        [
-            f"📦 {escape(item.title)}",
-            f"{emoji} <b>{escape(verdict.verdict.capitalize())}</b>: {price}",
-            f"💰 Valor de mercado: {_money(verdict.fair_min)}–{_money(verdict.fair_max)} {currency}"
-            f" · {verdict.comparables} anúncios comparáveis",
-            escape(reason),
-        ]
-    )
+    lines = [
+        f"📦 {escape(item.title)}",
+        f"{emoji} <b>{escape(verdict.verdict.capitalize())}</b>: {price}",
+        f"💰 Valor de mercado: {_money(verdict.fair_min)}–{_money(verdict.fair_max)} {currency}"
+        f" · {verdict.comparables} {'anúncio comparável' if verdict.comparables == 1 else 'anúncios comparáveis'}",
+    ]
+    store_line = _store_line(item, verdict)
+    if store_line:
+        lines.append(store_line)
+    lines.append(escape(reason))
+    return "\n".join(lines)
 
 
 async def price_check_reply(checker: PriceChecker, recent: RecentItems, item_id: int) -> str:
