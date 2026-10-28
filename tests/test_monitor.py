@@ -222,3 +222,46 @@ async def test_alerted_items_get_seller_country():
     await monitor.run_cycle()
     countries = {item.id: item.country for _, _, item in notifier.items}
     assert countries == {2: "", 3: "🇫🇷 França"}
+
+
+def _n_alertas(storage):
+    return storage._db.execute("SELECT COUNT(*) FROM alertas").fetchone()[0]
+
+
+async def test_primeira_leitura_nao_regista_alertas():
+    storage, _, _, _, monitor = _setup([[make_item(3), make_item(2)]])
+    _add(storage)
+    await monitor.run_cycle()
+    assert _n_alertas(storage) == 0
+
+
+async def test_alertas_enviados_ficam_registados():
+    page = [make_item(4), make_item(3), make_item(2)]
+    storage, _, _, _, monitor = _setup([[make_item(2)], page])
+    search = _add(storage)
+    await monitor.run_cycle()
+    await monitor.run_cycle()
+    rows = storage._db.execute("SELECT item_id, search_id, titulo FROM alertas ORDER BY item_id").fetchall()
+    assert [tuple(r) for r in rows] == [(3, search.id, "Item 3"), (4, search.id, "Item 4")]
+
+
+async def test_overflow_fica_registado():
+    burst = [make_item(i) for i in range(100 + MAX_ALERTS_PER_CYCLE + 5, 100, -1)]
+    storage, _, _, _, monitor = _setup([[make_item(1)], burst])
+    _add(storage)
+    await monitor.run_cycle()
+    await monitor.run_cycle()
+    assert _n_alertas(storage) == MAX_ALERTS_PER_CYCLE + 5
+
+
+async def test_envio_falhado_nao_regista_alerta():
+    page = [make_item(4), make_item(3), make_item(2)]
+    notifier = FakeNotifier(fail_item_ids={3})
+    storage, _, notifier, _, monitor = _setup([[make_item(2)], page, page], notifier)
+    _add(storage)
+    await monitor.run_cycle()
+    await monitor.run_cycle()
+    assert _n_alertas(storage) == 0
+    notifier.fail_item_ids.clear()
+    await monitor.run_cycle()
+    assert _n_alertas(storage) == 2

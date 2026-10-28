@@ -5,6 +5,7 @@ import sqlite3
 import time
 from dataclasses import dataclass
 
+from vintedbot.vinted.models import Item
 from vintedbot.vinted.url_parser import SearchQuery
 
 _SCHEMA = """
@@ -25,6 +26,19 @@ CREATE TABLE IF NOT EXISTS seen_items (
     seen_at REAL NOT NULL,
     PRIMARY KEY (search_id, item_id)
 );
+-- Alertas enviados, com os detalhes (lidos pela Wintermute em modo só de leitura).
+-- Sem ON DELETE CASCADE: o histórico fica mesmo que a pesquisa seja apagada.
+CREATE TABLE IF NOT EXISTS alertas (
+    item_id INTEGER NOT NULL,
+    search_id INTEGER NOT NULL,
+    titulo TEXT NOT NULL,
+    preco TEXT NOT NULL,
+    moeda TEXT NOT NULL,
+    url TEXT NOT NULL,
+    enviado_em REAL NOT NULL,
+    PRIMARY KEY (search_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS alertas_enviado ON alertas (enviado_em);
 """
 
 
@@ -148,6 +162,21 @@ class Storage:
                 "ON CONFLICT (search_id, item_id) DO UPDATE SET seen_at = excluded.seen_at",
                 [(search_id, item_id, ts) for item_id in item_ids],
             )
+
+    def registar_alertas(self, search_id: int, items: list[Item], now: float | None = None) -> None:
+        ts = time.time() if now is None else now
+        with self._db:
+            self._db.executemany(
+                "INSERT OR IGNORE INTO alertas (item_id, search_id, titulo, preco, moeda, url, enviado_em) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [(item.id, search_id, item.title, item.price, item.currency, item.url, ts) for item in items],
+            )
+
+    def purge_alertas(self, older_than_s: float, now: float | None = None) -> int:
+        ts = time.time() if now is None else now
+        with self._db:
+            cur = self._db.execute("DELETE FROM alertas WHERE enviado_em < ?", (ts - older_than_s,))
+        return cur.rowcount
 
     def purge_seen(self, older_than_s: float, now: float | None = None) -> int:
         ts = time.time() if now is None else now

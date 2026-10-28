@@ -139,3 +139,30 @@ def test_existing_database_is_migrated_with_last_item_id_from_seen_items(tmp_pat
     assert storage.get_search(2).last_item_id == 0
     storage.close()
     Storage(path).close()  # reabrir não volta a migrar nem falha
+
+
+def _alertas(storage):
+    return [tuple(r) for r in storage._db.execute(
+        "SELECT item_id, search_id, titulo, preco, moeda, url, enviado_em FROM alertas ORDER BY item_id")]
+
+
+def test_registar_alertas_guarda_detalhes_sem_duplicados():
+    from tests.fakes import make_item
+
+    storage = Storage()
+    search = _add(storage)
+    item = make_item(7, title="Air Max 90", price="45.0", currency="EUR")
+    storage.registar_alertas(search.id, [item], now=100.0)
+    storage.registar_alertas(search.id, [item], now=200.0)
+    assert _alertas(storage) == [(7, search.id, "Air Max 90", "45.0", "EUR", "https://www.vinted.pt/items/7", 100.0)]
+
+
+def test_purge_alertas():
+    from tests.fakes import make_item
+
+    storage = Storage()
+    search = _add(storage)
+    storage.registar_alertas(search.id, [make_item(1)], now=0.0)
+    storage.registar_alertas(search.id, [make_item(2)], now=40 * DAY)
+    assert storage.purge_alertas(30 * DAY, now=41 * DAY) == 1
+    assert [r[0] for r in _alertas(storage)] == [2]

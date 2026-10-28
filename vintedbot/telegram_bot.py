@@ -178,6 +178,8 @@ def build_application(settings: Settings, storage: Storage, client: VintedClient
     async def purge_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         removed = storage.purge_seen(SEEN_RETENTION_S)
         log.info("Limpeza: %s artigos vistos antigos removidos", removed)
+        removed = storage.purge_alertas(SEEN_RETENTION_S)
+        log.info("Limpeza: %s alertas antigos removidos", removed)
 
     app.job_queue.run_repeating(
         poll_job,

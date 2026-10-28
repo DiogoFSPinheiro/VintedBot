@@ -93,11 +93,14 @@ class Monitor:
                     item = replace(item, country=country)
             await self._notifier.send_item(search.chat_id, search, item)
             self._storage.mark_seen(search.id, [item.id])
+            self._storage.registar_alertas(search.id, [item])
         if overflow:
             await self._notifier.send_text(
                 search.chat_id,
                 f"… e mais {len(overflow)} artigos novos em «{search.name}»: {search.url}",
             )
+            # Também contam: apareceram, só não foram alertados um a um.
+            self._storage.registar_alertas(search.id, overflow)
         self._storage.mark_seen(search.id, ids)
         self._storage.advance_last_item_id(search.id, max(ids, default=0))
         return len(to_send)
