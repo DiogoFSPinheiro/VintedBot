@@ -7,6 +7,10 @@ Bot Telegram que monitoriza pesquisas da Vinted. Código e comentários em portu
 - `.venv/Scripts/python.exe -m vintedbot.vinted.client "<url de pesquisa vinted>"` - smoke test real contra a Vinted
 - `VintedBot.cmd` - arranca o bot (cria o venv na 1.ª vez; precisa de `.env`)
 
+## API para a Wintermute (`vintedbot/api.py`)
+- `python -m vintedbot.api listar|criar --texto=…|pausar|retomar|apagar --id=N`, no diretório do bot: uma linha de JSON (`{"erro"}` + código 1 quando falha). É por aqui que a Wintermute escreve nas pesquisas; não mudar o formato sem mudar o `vinted.py` dela
+- Cria pesquisas em vinted.pt só com texto e preços; ficam por "primar" (o `Monitor` não alerta os artigos que já lá estavam)
+
 ## API da Vinted (não oficial, muda sem aviso)
 - Pesquisa: `GET https://api.<domínio sem www>/svc-catalogue/items`, com os cookies obtidos ao pedir `https://www.<domínio>/`
 - A gateway precisa do header `Locale: <cookie anonymous-iso-locale>` (ex.: pt-PT); sem ele os textos vêm em francês
