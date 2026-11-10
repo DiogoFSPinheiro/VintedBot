@@ -5,7 +5,7 @@
     python -m vintedbot.api pausar|retomar|apagar --id=N
 
 Escreve uma linha de JSON no stdout: o resultado, ou {"erro": "..."} com código de saída 1. Corre no diretório
-do bot (lê o .env e a vintedbot.db de lá). Uma pesquisa criada fica por "primar": o Monitor marca como vistos
+do bot (lê o .env e a vintedbot.db de lá; o .env do bot ganha às variáveis herdadas de quem a chama). Uma pesquisa criada fica por "primar": o Monitor marca como vistos
 os artigos da primeira leitura sem alertar, como no /add.
 """
 
@@ -13,7 +13,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from collections.abc import Mapping
+from pathlib import Path
 from urllib.parse import urlencode
 
 from vintedbot.storage import Search, Storage
@@ -127,11 +130,22 @@ def executar(argv: list[str], storage: Storage, chat_id: int | None) -> tuple[in
         return 1, {"erro": str(exc)}
 
 
+ENV = Path(__file__).resolve().parent.parent / ".env"
+
+
+def ambiente(herdado: Mapping[str, str], ficheiro: Path) -> dict[str, str]:
+    """O ambiente herdado com o .env do bot por cima: quem chama (a Wintermute) tem o seu DB_PATH e o seu token."""
+    from dotenv import dotenv_values
+
+    proprio = {k: v for k, v in dotenv_values(ficheiro).items() if v is not None}
+    return {**herdado, **proprio}
+
+
 def main() -> None:
     from vintedbot.config import ConfigError, load_settings
 
     try:
-        settings = load_settings()
+        settings = load_settings(ambiente(os.environ, ENV))
     except ConfigError as exc:
         codigo, dados = 1, {"erro": str(exc)}
     else:

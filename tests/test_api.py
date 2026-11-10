@@ -102,3 +102,16 @@ def test_texto_a_comecar_por_hifen():
     storage = Storage()
     codigo, dados = _criar(storage, "--texto=-50% kirby")
     assert codigo == 0 and dados["pesquisa"]["texto"] == "-50% kirby"
+
+
+def test_ambiente_o_env_do_bot_ganha_ao_herdado(tmp_path):
+    from vintedbot.api import ambiente
+
+    env = tmp_path / ".env"
+    env.write_text("DB_PATH=vintedbot.db\nALLOWED_CHAT_ID=7\n", encoding="utf-8")
+    herdado = {"DB_PATH": "wintermute.db", "TELEGRAM_TOKEN": "da-wintermute", "PATH": "/usr/bin"}
+    resultado = ambiente(herdado, env)
+    assert resultado["DB_PATH"] == "vintedbot.db"
+    assert resultado["ALLOWED_CHAT_ID"] == "7"
+    assert resultado["PATH"] == "/usr/bin"
+    assert herdado["DB_PATH"] == "wintermute.db"  # não mexe no os.environ
