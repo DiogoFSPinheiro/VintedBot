@@ -2,7 +2,7 @@
 
 Bot pessoal que monitoriza pesquisas da Vinted e envia um alerta no Telegram por cada artigo novo.
 
-> ⚠️ Usa a API interna (não oficial) da Vinted (`https://api.vinted.<tld>/svc-catalogue/items`). Os Termos de Serviço proíbem automação: usa com moderação (intervalos ≥ 60 s) e por tua conta e risco. Se a Vinted mudar a API, o bot deixa de funcionar até ser adaptado.
+> ⚠️ Usa a API interna (não oficial) da Vinted (`https://api.vinted.<tld>/svc-catalogue/items`). 
 
 ## Setup (Windows)
 
