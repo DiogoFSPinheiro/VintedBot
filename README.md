@@ -1,43 +1,43 @@
 # VintedBot
 
-Bot pessoal que monitoriza pesquisas da Vinted e envia um alerta no Telegram por cada artigo novo.
+Personal bot that monitors Vinted searches and sends a Telegram alert for every new listing.
 
-> ⚠️ Usa a API interna (não oficial) da Vinted (`https://api.vinted.<tld>/svc-catalogue/items`). 
+> ⚠️ Uses Vinted's internal (unofficial) API (`https://api.vinted.<tld>/svc-catalogue/items`).
 
 ## Setup (Windows)
 
-1. Instalar o Python 3.12: `winget install -e --id Python.Python.3.12`
-2. `python -m venv .venv` e `.venv\Scripts\Activate.ps1`
+1. Install Python 3.12: `winget install -e --id Python.Python.3.12`
+2. `python -m venv .venv` and `.venv\Scripts\Activate.ps1`
 3. `python -m pip install -r requirements.txt`
-4. Criar o bot no Telegram com o [@BotFather](https://t.me/BotFather) e copiar o token.
-5. `copy .env.example .env` e preencher `TELEGRAM_TOKEN`.
-6. `python -m vintedbot.main`, enviar `/id` ao bot, pôr o número em `ALLOWED_CHAT_ID` no `.env` e reiniciar.
+4. Create a Telegram bot with [@BotFather](https://t.me/BotFather) and copy the token.
+5. `copy .env.example .env` and fill in `TELEGRAM_TOKEN`.
+6. `python -m vintedbot.main`, send `/id` to the bot, put the number in `ALLOWED_CHAT_ID` in `.env` and restart.
 
 ## Setup (Linux / Raspberry Pi)
 
-Precisa de Python 3 com `venv` (`sudo apt install python3-venv`) e, num Pi, de um sistema de 64 bits.
+Requires Python 3 with `venv` (`sudo apt install python3-venv`) and, on a Pi, a 64-bit OS.
 
-1. Copiar o `.env` (e o `vintedbot.db`, para manter as pesquisas) para a pasta do projeto.
-2. `./vintedbot.sh`: cria o `.venv` na primeira vez e arranca o bot. Ctrl+C para parar.
-3. `./vintedbot.sh install`: instala o serviço `systemd`, que arranca com o sistema e reinicia se o bot cair.
-   - Log: `journalctl -u vintedbot -f` · Estado: `sudo systemctl status vintedbot`
-4. Atualizar: `./deploy.sh` faz `git pull`, instala as dependências se mudaram, corre os testes e só reinicia o serviço se passarem. `./deploy.sh --force` reinicia mesmo sem alterações.
+1. Copy the `.env` (and `vintedbot.db`, to keep your searches) into the project folder.
+2. `./vintedbot.sh`: creates the `.venv` on first run and starts the bot. Ctrl+C to stop.
+3. `./vintedbot.sh install`: installs the `systemd` service, which starts on boot and restarts the bot if it crashes.
+   - Logs: `journalctl -u vintedbot -f` · Status: `sudo systemctl status vintedbot`
+4. Update: `./deploy.sh` runs `git pull`, installs dependencies if they changed, runs the tests and only restarts the service if they pass. `./deploy.sh --force` restarts even with no changes.
 
-> Só pode haver **um** bot a correr com o mesmo token: desliga o do PC antes de ligar o do Pi (senão o Telegram dá `409 Conflict`).
+> Only **one** bot can run with the same token: stop the one on your PC before starting the one on the Pi (otherwise Telegram returns `409 Conflict`).
 
-## Utilização
+## Usage
 
-1. Na Vinted, faz a pesquisa com os filtros que quiseres (marca, tamanho, preço, estado…).
-2. Copia o URL e envia `/add <url> [nome]` ao bot.
-3. A partir daí recebes um alerta por cada artigo novo (no máximo 10 por ciclo; o resto vem resumido).
+1. On Vinted, run a search with whatever filters you want (brand, size, price, condition…).
+2. Copy the URL and send `/add <url> [name]` to the bot.
+3. From then on you get an alert for every new listing (up to 10 per cycle; the rest are summarised).
 
-Comandos: `/add`, `/list`, `/pause <id>`, `/resume <id>`, `/remove <id>`, `/status`, `/id`.
+Commands: `/add`, `/list`, `/pause <id>`, `/resume <id>`, `/remove <id>`, `/status`, `/id`.
 
-**Avaliar preço:** se o [Claude Code](https://claude.com/claude-code) (`claude`) estiver instalado e com sessão iniciada, cada alerta tem um botão «💡 Avaliar preço». O bot pesquisa na Vinted anúncios com o mesmo título e pede ao Claude um veredicto (bom negócio / preço justo / caro) com o intervalo de preço justo. Demora 10–30 s, gasta da tua conta Claude e só funciona para alertas recebidos desde o último arranque do bot. Desliga com `PRICE_CHECK=0` no `.env`.
+**Price check:** if [Claude Code](https://claude.com/claude-code) (`claude`) is installed and logged in, each alert gets a «💡 Check price» button. The bot searches Vinted for listings with the same title and asks Claude for a verdict (good deal / fair price / overpriced) with a fair price range. Takes 10–30 s, uses your Claude account quota, and only works for alerts received since the bot last started. Disable it with `PRICE_CHECK=0` in `.env`.
 
-Para testar a ligação à Vinted sem o Telegram:
-`python -m vintedbot.vinted.client "<url da pesquisa>"`
+To test the Vinted connection without Telegram:
+`python -m vintedbot.vinted.client "<search url>"`
 
-## Testes
+## Tests
 
 `python -m pytest`
